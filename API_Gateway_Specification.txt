@@ -1,0 +1,57 @@
+openapi: 3.0.0
+info:
+  title: School Journal API
+  version: 1.0.0
+
+servers:
+- url: https://d5dgr499nv8jsd5tf5id.y5sm01em.apigw.yandexcloud.net
+paths:
+  /auth:
+    options:
+      x-yc-apigateway-integration:
+        type: dummy
+        http_code: 200
+        http_headers:
+          Access-Control-Allow-Origin: '*'
+          Access-Control-Allow-Methods: '*'
+          Access-Control-Allow-Headers: '*'
+        content:
+          '*': ''
+    post:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4e5967vch9b37g52487
+      summary: User authentication
+
+  /grades:
+    options:
+      x-yc-apigateway-integration:
+        type: dummy
+        http_code: 200
+        http_headers:
+          Access-Control-Allow-Origin: '*'
+          Access-Control-Allow-Methods: '*'
+          Access-Control-Allow-Headers: '*'
+        content:
+          '*': ''
+    get:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4e873a615m5s2oj25ce
+      summary: Get student grades
+    post:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: d4ehge6but2ckv6gouk1
+      summary: Add new grade
+
+x-yc-apigateway-cors:
+  allowed_origins:
+    - https://storage.yandexcloud.net
+    - http://localhost:8000
+  allowed_methods:
+    - GET
+    - POST
+    - OPTIONS
+  allowed_headers:
+    - '*'
