@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Электронный дневник</title>
+    <style>
+        body { font-family: Arial; margin: 0; padding: 20px; background: #f5f5f5; }
+        .diary-page { 
+            width: 1200px; margin: 20px auto; 
+            border: 1px solid #ccc; padding: 20px;
+            background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .week-navigation { 
+            text-align: center; margin: 20px 0; 
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .week-days {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+        }
+        .day-column { 
+            flex: 1;
+            min-width: 200px;
+            border: 1px solid #e0e0e0; 
+            border-radius: 8px;
+            padding: 15px;
+            background: #fafafa;
+        }
+        .subject-item { 
+            margin: 10px 0; padding: 8px; 
+            border: 1px solid #e0e0e0; border-radius: 4px;
+            background: white;
+        }
+        .lesson-time { font-size: 12px; color: #666; }
+        .subject-name { font-weight: bold; margin: 5px 0; }
+        .marks { min-height: 20px; }
+        .mark { 
+            display: inline-block; width: 25px; height: 25px; 
+            text-align: center; line-height: 25px; margin: 2px; 
+            border-radius: 3px; font-weight: bold;
+        }
+        .mark-5 { background: #4caf50; color: white; }
+        .mark-4 { background: #8bc34a; color: white; }
+        .mark-3 { background: #ffc107; }
+        .mark-2 { background: #f44336; color: white; }
+        .mark-N { background: #ff9800; color: white; }
+        .mark-B { background: #2196f3; color: white; }
+        .nav-button {
+            padding: 10px 20px; background: #3f51b5; color: white;
+            border: none; border-radius: 5px; cursor: pointer;
+        }
+        .student-info { 
+            background: #3f51b5; color: white; padding: 15px; 
+            text-align: center; margin-bottom: 20px;
+        }
+        .day-header { 
+            background: #3f51b5; color: white; padding: 12px; 
+            border-radius: 4px; margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .no-schedule {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="student-info">
+        <h2>Электронный дневник</h2>
+        <div id="studentName">Загрузка...</div>
+    </div>
+
+    <div class="diary-page">
+        <div class="week-navigation">
+            <button class="nav-button" onclick="changeWeek(-1)">← Предыдущая неделя</button>
+            <span id="weekRange">Неделя</span>
+            <button class="nav-button" onclick="changeWeek(1)">Следующая неделя →</button>
+        </div>
+        
+        <div class="week-days" id="weekSchedule">
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://d5dgr499nv8jsd5tf5id.y5sm01em.apigw.yandexcloud.net';
+        let currentWeek = 0;
+        let studentData = null;
+        let studentGrades = [];
+
+        function loadDiary() {
+            studentData = JSON.parse(localStorage.getItem('user'));
+            if (!studentData) {
+                window.location.href = 'index.html';
+                return;
+            }
+            
+            document.getElementById('studentName').textContent = 
+                studentData.full_name + ' • ' + studentData.class + ' класс';
+            loadWeek();
+        }
+
+        function loadWeek() {
+            const monday = getMonday(currentWeek);
+            loadStudentGrades().then(() => {
+                loadSchedule(monday);
+                updateWeekRange(monday);
+            });
+        }
+
+        function loadStudentGrades() {
+            return fetch(API_URL + '/grades?student_id=' + studentData.id)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.grades) {
+                        studentGrades = data.grades;
+                        console.log('Loaded grades:', studentGrades);
+                    } else {
+                        studentGrades = [];
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading grades:', error);
+                    studentGrades = [];
+                });
+        }
+
+        function loadSchedule(monday) {
+            const schedule = getClassSchedule(studentData.class);
+            const weekDays = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница'];
+            
+            let scheduleHtml = '';
+            
+            // Проверяем, есть ли расписание для класса
+            if (!schedule || schedule.length === 0) {
+                scheduleHtml = `<div class="no-schedule">Расписание для класса ${studentData.class} не найдено</div>`;
+            } else {
+                weekDays.forEach((day, dayIndex) => {
+                    const date = new Date(monday);
+                    date.setDate(monday.getDate() + dayIndex);
+                    const daySchedule = schedule[dayIndex] || [];
+                    const dateStr = formatDate(date);
+                    const isoDate = date.toISOString().split('T')[0];
+                    
+                    scheduleHtml += `
+                        <div class="day-column">
+                            <div class="day-header">${day}<br>${dateStr}</div>
+                    `;
+                    
+                    if (daySchedule.length === 0) {
+                        scheduleHtml += `<div class="no-schedule">Нет уроков</div>`;
+                    } else {
+                        daySchedule.forEach((subject, lessonIndex) => {
+                            const gradeForSubject = studentGrades.find(grade => 
+                                grade.date === isoDate && grade.subject === subject
+                            );
+                            
+                            scheduleHtml += `
+                                <div class="subject-item">
+                                    <div class="lesson-time">${getLessonTime(lessonIndex)}</div>
+                                    <div class="subject-name">${subject}</div>
+                                    <div class="marks">
+                            `;
+                            
+                            if (gradeForSubject) {
+                                scheduleHtml += `<span class="mark mark-${gradeForSubject.mark}">${gradeForSubject.mark}</span>`;
+                            }
+                            
+                            scheduleHtml += `
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    }
+                    
+                    scheduleHtml += `</div>`;
+                });
+            }
+            
+            document.getElementById('weekSchedule').innerHTML = scheduleHtml;
+        }
+
+        function getClassSchedule(className) {
+            const schedules = {
+                '7А': [
+                    ['Математика', 'Русский язык', 'Английский язык'],
+                    ['Физика', 'Биология', 'Математика'],
+                    ['Литература', 'Физкультура', 'Русский язык'],
+                    ['Химия', 'ОБЖ', 'История'],
+                    ['Информатика', 'Физкультура', 'Английский язык']
+                ],
+                '7Б': [
+                    ['Русский язык', 'Английский язык', 'Математика'],
+                    ['Биология', 'Математика', 'Физика'],
+                    ['Физкультура', 'Русский язык', 'Литература'],
+                    ['История', 'Химия', 'ОБЖ'],
+                    ['Английский язык', 'Информатика', 'Физкультура']
+                ],
+                '7В': [
+                    ['Английский язык', 'Математика', 'Русский язык'],
+                    ['Математика', 'Физика', 'Биология'],
+                    ['Русский язык', 'Литература', 'Физкультура'],
+                    ['ОБЖ', 'История', 'Химия'],
+                    ['Физкультура', 'Английский язык', 'Информатика']
+                ],
+                '7Г': [
+                    ['Математика', 'Физика', 'Биология'],
+                    ['Русский язык', 'Английский язык', 'Математика'],
+                    ['Физкультура', 'Русский язык', 'Литература'],
+                    ['Химия', 'ОБЖ', 'История'],
+                    ['Информатика', 'Физкультура', 'Английский язык']
+                ]
+            };
+            return schedules[className] || [];
+        }
+
+        function getLessonTime(lessonIndex) {
+            const times = ['08:00-08:40', '08:50-09:30', '09:40-10:20'];
+            return times[lessonIndex] || '--:--';
+        }
+
+        function changeWeek(offset) {
+            currentWeek += offset;
+            loadWeek();
+        }
+
+        function getMonday(weekOffset = 0) {
+            const date = new Date();
+            const day = date.getDay();
+            const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(date.setDate(diff + (weekOffset * 7)));
+            return monday;
+        }
+
+        function formatDate(date) {
+            return date.getDate().toString().padStart(2, '0') + '.' + 
+                   (date.getMonth()+1).toString().padStart(2, '0');
+        }
+
+        function updateWeekRange(monday) {
+            const friday = new Date(monday);
+            friday.setDate(monday.getDate() + 4);
+            document.getElementById('weekRange').textContent = 
+                formatDate(monday) + ' - ' + formatDate(friday);
+        }
+
+        loadDiary();
+    </script>
+</body>
+</html>
